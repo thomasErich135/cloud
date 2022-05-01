@@ -1,0 +1,233 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create infra for OneeWorld - Budget Account
+Parameters:
+  DomainName:
+    Type: String
+    Default: onee.world
+    Description: Enter the name domain
+  ProjectName:
+    Type: String
+    Default: oneeworld
+    Description: Enter the project name
+  StageName:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+    Description: Enter the environment dev or prod
+  BudgetLimit:
+    Type: Number
+    Default: 50
+    Description: Enter the limit of budget
+  BudgetStopServiceLimit:
+    Type: Number
+    Default: 100
+    Description: Enter the limit of budget
+  EmailNotificationA:
+    Type: String
+    Default: thomas.pimentel@onee.world
+    Description: Inform email for notification of alerts
+  EmailNotificationB:
+    Type: String
+    Default: kt.erich4@gmail.com
+    Description: Inform email for notification of alerts
+Conditions:
+  IsProduction:
+    !Equals
+      - Ref: StageName
+      - prod
+Resources:
+  Budget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName:
+          !Sub budget-${StageName}-${ProjectName}
+        BudgetLimit:
+          Amount:
+            Ref: BudgetLimit
+          Unit: USD
+        TimeUnit: MONTHLY
+        BudgetType: COST
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            ThresholdType: PERCENTAGE
+            Threshold: 80
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationA
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationB
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            ThresholdType: PERCENTAGE
+            Threshold: 100
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationA
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationB
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            ThresholdType: PERCENTAGE
+            Threshold: 120
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationA
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationB
+  BudgetStopService:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName:
+          !Sub budget-stop-service-${StageName}-${ProjectName}
+        BudgetLimit:
+          Amount:
+            Ref: BudgetStopServiceLimit
+          Unit: USD
+        TimeUnit: MONTHLY
+        BudgetType: COST
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            ThresholdType: PERCENTAGE
+            Threshold: 80
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationA
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationB
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            ThresholdType: PERCENTAGE
+            Threshold: 100
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationA
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationB
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            ThresholdType: PERCENTAGE
+            Threshold: 125
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationA
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationB
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            ThresholdType: PERCENTAGE
+            Threshold: 150
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationA
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationB
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            ThresholdType: PERCENTAGE
+            Threshold: 175
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationA
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationB
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            ThresholdType: PERCENTAGE
+            Threshold: 200
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationA
+            - SubscriptionType: EMAIL
+              Address: 
+                Ref: EmailNotificationB
+  BudgetStopServiceActions:
+    Type: AWS::Budgets::BudgetsAction
+    Properties:
+      ActionThreshold:
+        Type: PERCENTAGE
+        Value: 100
+      ActionType: RUN_SSM_DOCUMENTS
+      ApprovalModel: AUTOMATIC
+      BudgetName:
+        Ref: BudgetStopService
+      Definition:
+        SsmActionDefinition:
+          InstanceIds:
+            - Fn::ImportValue:
+                !Sub db-${StageName}-id-instance
+          Region: sa-east-1
+          Subtype: STOP_RDS_INSTANCES
+      ExecutionRoleArn:
+        !GetAtt FuncionBudgetsManager.Arn
+      NotificationType: ACTUAL
+      Subscribers:
+        - Type: EMAIL
+          Address: 
+            Ref: EmailNotificationA
+        - Type: EMAIL
+          Address: 
+            Ref: EmailNotificationB
+  FuncionBudgetsManager:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - budgets.amazonaws.com
+      Description: Budgets Actions Manager
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSBudgetsActionsRolePolicyForResourceAdministrationWithSSM
+      Path: /
+      RoleName: BudgetsActionsManager
+      Tags:
+        - Value:
+            Ref: ProjectName
+          Key: Project
+        - Value:
+            !If
+              - IsProduction
+              - Production
+              - Development
+          Key: Environment
+Outputs:
+  BudgetId:
+    Value: Budget
+  BudgetStopServiceId:
+    Value: BudgetStopService
