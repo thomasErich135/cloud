@@ -1,0 +1,195 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Create infra for OneeWorld - Cognito",
+	"Metadata": {},
+	"Parameters": {
+		"ProjectName": {
+			"Type": "String",
+			"Default": "oneeworld",
+			"Description": "Enter the project name"
+		},
+		"ProjectNameNew": {
+			"Type": "String",
+			"Default": "oneeworld",
+			"Description": "Enter the project name"
+		},
+		"StageName": {
+			"Type": "String",
+			"Default": "dev",
+			"AllowedValues": [
+				"dev",
+				"prod"
+			],
+			"Description": "Enter the environment: dev or prod"
+		}
+	},
+	"Mappings": {},
+	"Conditions": {
+		"IsProduction": {
+			"Fn::Equals": [
+				{
+					"Ref": "StageName"
+				},
+				"prod"
+			]
+		}
+	},
+	"Resources": {
+		"CognitoPool": {
+			"Type": "AWS::Cognito::UserPool",
+			"Properties": {
+				"AccountRecoverySetting": {
+					"RecoveryMechanisms": [
+						{
+							"Name": "verified_email",
+							"Priority": "1"
+						}
+					]
+				},
+				"AutoVerifiedAttributes": [
+					"email"
+				],
+				"AdminCreateUserConfig": {
+					"AllowAdminCreateUserOnly": "True"
+				},
+				"DeviceConfiguration": {
+					"DeviceOnlyRememberedOnUserPrompt": "False"
+				},
+				"Schema": [
+					{
+						"AttributeDataType": "String",
+						"Mutable": "True",
+						"Name": "phone_number",
+						"Required": "True"
+					},
+					{
+						"AttributeDataType": "String",
+						"Mutable": "True",
+						"Name": "name",
+						"Required": "True"
+					},
+					{
+						"AttributeDataType": "String",
+						"Mutable": "True",
+						"Name": "middle_name",
+						"Required": "True"
+					},
+					{
+						"AttributeDataType": "String",
+						"Mutable": "True",
+						"Name": "email",
+						"Required": "True"
+					},
+					{
+						"AttributeDataType": "String",
+						"Mutable": "True",
+						"Name": "document",
+						"StringAttributeConstraints": {
+							"MinLength": "8",
+							"MaxLength": "20"
+						}
+					},
+					{
+						"AttributeDataType": "String",
+						"Mutable": "True",
+						"Name": "document-type",
+						"StringAttributeConstraints": {
+							"MinLength": "2",
+							"MaxLength": "12"
+						}
+					}
+				],
+				"MfaConfiguration": "OFF",
+				"UsernameAttributes": [
+					"email"
+				],
+				"UsernameConfiguration": {
+					"CaseSensitive": "False"
+				},
+				"UserPoolAddOns": {
+					"AdvancedSecurityMode": "OFF"
+				},
+				"UserPoolName": {
+					"Fn::Sub": "${StageName}-${ProjectName}"
+				},
+				"UserPoolTags": {
+					"Project": {
+						"Ref": "ProjectName"
+					},
+					"Environment": {
+						"Fn::If": [
+							"IsProduction",
+							"Production",
+							"Development"
+						]
+					}
+				}
+			}
+		},
+		"CognitoPoolClient": {
+			"Type": "AWS::Cognito::UserPoolClient",
+			"Properties": {
+				"IdTokenValidity": "60",
+				"AccessTokenValidity": "60",
+				"RefreshTokenValidity": "90",
+				"TokenValidityUnits": {
+					"AccessToken": "minutes",
+					"IdToken": "minutes",
+					"RefreshToken": "minutes"
+				},
+				"EnableTokenRevocation": "True",
+				"ExplicitAuthFlows": [
+					"ALLOW_CUSTOM_AUTH",
+					"ALLOW_USER_SRP_AUTH",
+					"ALLOW_REFRESH_TOKEN_AUTH"
+				],
+				"GenerateSecret": "False",
+				"PreventUserExistenceErrors": "ENABLED",
+				"UserPoolId": {
+					"Ref": "CognitoPool"
+				},
+				"SupportedIdentityProviders": [
+					"COGNITO"
+				]
+			}
+		}
+	},
+	"Outputs": {
+		"CognitoPoolArn": {
+			"Description": "The arn group pool Cognito",
+			"Value": {
+				"Fn::GetAtt": [
+					"CognitoPool",
+					"Arn"
+				]
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "cognito-${StageName}-arn-pool"
+				}
+			}
+		},
+		"CognitoPoolId": {
+			"Description": "The id group of pool Cognito",
+			"Value": {
+				"Ref": "CognitoPool"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "cognito-${StageName}-id-pool"
+				}
+			}
+		},
+		"CognitoPoolClientId": {
+			"Description": "The id client group of pool Cognito",
+			"Value": {
+				"Ref": "CognitoPoolClient"
+			},
+			"Export": {
+				"Name": {
+					"Fn::Sub": "cognito-${StageName}-id-pool-client"
+				}
+			}
+		}
+	}
+}
