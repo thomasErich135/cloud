@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create infra for OneeWorld - Cloud Watch Alarms SNS Topic.
+Parameters:
+  ProjectName:
+    Type: String
+    Default: oneeworld
+    Description: Enter the project name
+  StageName:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+    Description: 'Enter the environment: dev or prod'
+  CloudWatchAlarmEmailA:
+    Type: String
+    Default: endereco_email@email.com
+    Description: Enter email to receveid alarm cloudwatch
+  CloudWatchAlarmEmailB:
+    Type: String
+    Default: endereco_email@email.com
+    Description: Enter email to receveid alarm cloudwatch
+  CloudWatchAlarmEmailC:
+    Type: String
+    Default: endereco_email@email.com
+    Description: Enter email to receveid alarm cloudwatch
+  SqsQueueName:
+    Type: String
+    Default: cliente-dev-shared-dead.fifo
+    Description: Enter name to SQS Queue to monitore
+Conditions:
+  IsProduction:
+    !Equals
+      - Ref: StageName
+      - prod
+Resources:
+  CloudWatchSns:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName:
+        !Sub cloudwatch-alarm-topic-${StageName}-${ProjectName}
+      Tags:
+        - Value: 
+            !Ref ProjectName
+          Key: Project
+        - Value: 
+            !If [IsProduction, Production, Development]
+          Key: Environment
+  CloudWatchSnsPolicyAccess:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref CloudWatchSns
+      PolicyDocument: 
+        Id: cloudwatch-alarm-topic-policy
+        Version: '2012-10-17'
+        Statement:
+          - Sid: cloudwatch-alarm-topic-policy
+            Effect: Allow
+            Principal:
+              Service:
+                - cloudwatch.amazonaws.com
+            Action:
+              - SNS:Publish
+            Resource: 
+              !Ref CloudWatchSns
+            Condition:
+              StringEquals:
+                AWS:SourceOwner: 
+                  !Ref 'AWS::AccountId'
+  CloudWatchSnsSubscriptionEmailA:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn:
+        !Ref CloudWatchSns
+      Protocol: email
+      Endpoint: 
+        !Ref CloudWatchAlarmEmailA
+  CloudWatchSnsSubscriptionEmailB:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn:
+        !Ref CloudWatchSns
+      Protocol: email
+      Endpoint: 
+        !Ref CloudWatchAlarmEmailB
+  CloudWatchSnsSubscriptionEmailC:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn:
+        !Ref CloudWatchSns
+      Protocol: email
+      Endpoint: 
+        !Ref CloudWatchAlarmEmailC
+  SqsQueueDeadAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription:
+        Fn::Sub: "${SqsQueueName} - Mensagens visiveis recebidas >= 1"
+      AlarmActions:
+        - Ref: CloudWatchSns
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value:
+            Ref: SqsQueueName
+      Statistic: Maximum
+      Period: 300
+      DatapointsToAlarm: 1
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+Outputs:
+  CloudWatchSns:
+    Description: The resource name for CloudWatch SNS Alarm
+    Value:
+      Ref: CloudWatchSns
+    Export:
+      Name:
+        !Sub cloudwatch-${StageName}-sns-alarm
