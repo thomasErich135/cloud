@@ -1,0 +1,177 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create infra for OneeWorld - DMS replication
+Parameters:
+  DomainName:
+    Type: String
+    Default: onee.world
+    Description: Enter the name domain
+  ProjectName:
+    Type: String
+    Default: oneeworld
+    Description: Enter the project name
+  StageName:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+    Description: 'Enter the environment: dev or prod'
+Conditions:
+  IsProduction:
+    Fn::Equals:
+      - Ref: StageName
+      - prod  
+Resources:
+  DMSSubnetGroupPrivate:
+    Type: AWS::DMS::ReplicationSubnetGroup
+    Properties: 
+      ReplicationSubnetGroupDescription: Subnet OneeWorld MariaDb Private
+      ReplicationSubnetGroupIdentifier: 
+        !Sub oneeworld-dms-${StageName}-subnet-group-private
+      SubnetIds: 
+        - Fn::ImportValue:
+            !Sub vpc-${StageName}-id-subnet-A
+        - Fn::ImportValue:
+            !Sub vpc-${StageName}-id-subnet-B
+        - Fn::ImportValue:
+            !Sub vpc-${StageName}-id-subnet-C
+      Tags: 
+        - Key: Project
+          Value:
+            Ref: ProjectName
+        - Key: Environment
+          Value:
+            Fn::If:
+              - IsProduction
+              - Production
+              - Development  
+  DMSInstance:
+    Type: AWS::DMS::ReplicationInstance
+    Properties: 
+      AllocatedStorage: 50
+      AllowMajorVersionUpgrade: "true"
+      AutoMinorVersionUpgrade: "true"      
+      EngineVersion: "3.4.7"
+      MultiAZ: "false"
+      PubliclyAccessible: "false"
+      ReplicationInstanceClass: dms.t3.medium
+      ReplicationInstanceIdentifier: 
+        !Sub oneeworld-dms-${StageName}-replication
+      ReplicationSubnetGroupIdentifier: 
+        Ref: DMSSubnetGroupPrivate        
+      Tags: 
+        - Key: Project
+          Value:
+            Ref: ProjectName
+        - Key: Environment
+          Value:
+            Fn::If:
+              - IsProduction
+              - Production
+              - Development   
+      VpcSecurityGroupIds: 
+        - Fn::ImportValue:
+            !Sub vpc-${StageName}-id-security-group
+  DMSEndpointSourceDiadema:
+    Type: AWS::DMS::Endpoint
+    Properties: 
+      EndpointIdentifier:
+        !Sub source-${StageName}-sqlserver-onee-brayton
+      EndpointType: source 
+      EngineName: sqlserver
+      DatabaseName: Onee_Brayton
+      MicrosoftSqlServerSettings:
+        SecretsManagerSecretId: 
+          Fn::ImportValue:
+            !Sub secret-${StageName}-arn-ec2-sqlserver
+        SecretsManagerAccessRoleArn: 
+          Fn::ImportValue:
+            !Sub iam-function-${StageName}-arn-dms-secret-manager
+      Tags: 
+        - Key: Project
+          Value:
+            Ref: ProjectName
+        - Key: Environment
+          Value:
+            Fn::If:
+              - IsProduction
+              - Production
+              - Development
+  DMSEndpointSourcePaulinia:
+    Type: AWS::DMS::Endpoint
+    Properties: 
+      EndpointIdentifier:
+        !Sub source-${StageName}-sqlserver-onee-brayton-paulinia
+      EndpointType: source 
+      EngineName: sqlserver
+      DatabaseName: Onee_Brayton_Paulinia
+      MicrosoftSqlServerSettings:
+        SecretsManagerSecretId: 
+          Fn::ImportValue:
+            !Sub secret-${StageName}-arn-ec2-sqlserver
+        SecretsManagerAccessRoleArn: 
+          Fn::ImportValue:
+            !Sub iam-function-${StageName}-arn-dms-secret-manager
+      Tags: 
+        - Key: Project
+          Value:
+            Ref: ProjectName
+        - Key: Environment
+          Value:
+            Fn::If:
+              - IsProduction
+              - Production
+              - Development
+  DMSEndpointTarget:
+    Type: AWS::DMS::Endpoint
+    Properties: 
+      EndpointIdentifier:
+        !Sub target-${StageName}-mariadb
+      EndpointType: target 
+      EngineName: mariadb
+      MySqlSettings:
+        SecretsManagerSecretId: 
+          Fn::ImportValue:
+            !Sub secret-${StageName}-arn-rds-mariadb
+        SecretsManagerAccessRoleArn: 
+          Fn::ImportValue:
+            !Sub iam-function-${StageName}-arn-dms-secret-manager
+      Tags: 
+        - Key: Project
+          Value:
+            Ref: ProjectName
+        - Key: Environment
+          Value:
+            Fn::If:
+              - IsProduction
+              - Production
+              - Development
+Outputs:
+  DMSInstance:
+    Description: DMS Instance ARN
+    Value:
+      Ref: DMSInstance
+    Export:
+      Name:
+        !Sub dms-${StageName}-arn-instance
+  DMSEndpointSourceDiadema:
+    Description: DMS Endpoint ARN - Source Onee_Brayton
+    Value:
+      Ref: DMSEndpointSourceDiadema
+    Export:
+      Name:
+        !Sub dms-${StageName}-arn-endpoint-onee-brayton
+  DMSEndpointSourcePaulinia:
+    Description: DMS Endpoint ARN - Source Onee_Brayton_Paulinia
+    Value:
+      Ref: DMSEndpointSourcePaulinia
+    Export:
+      Name:
+        !Sub dms-${StageName}-arn-endpoint-onee-brayton-paulinia
+  DMSEndpointTarget:
+    Description: DMS Endpoint ARN - Target MariaDb
+    Value:
+      Ref: DMSEndpointTarget
+    Export:
+      Name:
+        !Sub dms-${StageName}-arn-endpoint-mariadb
